@@ -10,7 +10,7 @@ var (
 	ErrPoolNotRunning  = errors.New("Pool is not running.")
 	ErrPoolRunning     = errors.New("Pool is running.")
 	ErrNoActiveWorkers = errors.New("Pool has no active workers.")
-	ErrTimeout         = errors.New("Host Tiemout")
+	ErrTimeout         = errors.New("Host Timeout")
 )
 
 type worker struct {
@@ -60,7 +60,9 @@ func (w *worker) work() {
 
 		case job := <-jCh:
 			resp, timeout = w.client.Execute(job)
-			resp.Error = ErrTimeout
+			if timeout {
+				resp.Error = ErrTimeout
+			}
 			job.ResultCh() <- resp
 
 		case <-hostReachable:
