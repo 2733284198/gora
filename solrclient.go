@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/golang/glog"
 )
 
 // SolrClient is the interface that workers in the workerpool use
@@ -58,6 +60,11 @@ func NewHttpSolrClient(host, core string) SolrClient {
 // received the query, and that this connection is valid.
 func (c *HttpSolrClient) TestConnection() bool {
 	_, err := c.execQuery("", []byte(""))
+
+	if err != nil && glog.V(2) {
+		glog.Infof("HttpSolrClient.TestConnection() for %v failed. %v.", c.Host, err)
+	}
+
 	return err == nil
 }
 
@@ -71,12 +78,16 @@ func (c *HttpSolrClient) Execute(job SolrJob) (*SolrResponse, bool) {
 	emptyResponse := &SolrResponse{}
 	byteResponse, err := c.execQuery(handler, jobBytes)
 	if err != nil {
+		glog.Warningf("HttpSolrClient.execQuery() failed. %v.", err)
+
 		emptyResponse.Error = err
 		return emptyResponse, c.temporaryError(err)
 	}
 
 	solrResponse, err := SolrResponseFromHTTPResponse(byteResponse)
 	if err != nil {
+		glog.Warningf("HttpSolrClient.SolrResponseFromHTTPResponse() failed. %v.", err)
+
 		emptyResponse.Error = err
 		return emptyResponse, false
 	}
