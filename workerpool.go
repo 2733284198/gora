@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 var (
@@ -19,19 +21,21 @@ type worker struct {
 	jobCh      <-chan SolrJob
 	dieCh      <-chan struct{}
 	sigDeathCh chan<- struct{}
+	timeout    int
 }
 
 var (
 	solrClientConstructor = NewHttpSolrClient
 )
 
-func newWorker(parent *Pool, jCh <-chan SolrJob, dCh <-chan struct{}, sDeathCh chan<- struct{}, hostUrl string, core string) *worker {
+func newWorker(parent *Pool, jCh <-chan SolrJob, dCh <-chan struct{}, sDeathCh chan<- struct{}, hostUrl string, core string, timeout int) *worker {
 	return &worker{
 		parent:     parent,
 		jobCh:      jCh,
 		dieCh:      dCh,
 		sigDeathCh: sDeathCh,
 		client:     solrClientConstructor(hostUrl, core),
+		timeout:    timeout,
 	}
 }
 
@@ -47,7 +51,7 @@ func (w *worker) work() {
 
 		if timeout {
 			jCh = nil
-			hostReachable = time.After(time.Second * 10)
+			hostReachable = time.After(time.Second * time.Duration(w.timeout))
 		} else {
 			jCh = w.jobCh
 			hostReachable = nil
@@ -61,12 +65,17 @@ func (w *worker) work() {
 		case job := <-jCh:
 			resp, timeout = w.client.Execute(job)
 			if timeout {
+				glog.Warning("SolrWorker.timeout received.")
 				resp.Error = ErrTimeout
 			}
 			job.ResultCh() <- resp
 
 		case <-hostReachable:
+			if glog.V(2) {
+				glog.Info("Trying to reconnect to host...")
+			}
 			timeout = w.hostOffline()
+			glog.Warningf("SolrWorker.hostReachable = %v.", timeout)
 		}
 	}
 }
@@ -89,21 +98,22 @@ type Pool struct {
 	// solrCore is the core to work with on the Solr server
 	solrCore string
 
-	jobCh chan SolrJob
-	dieCh chan struct{}
-	lock  sync.Mutex
+	timeout int
+	jobCh   chan SolrJob
+	dieCh   chan struct{}
+	lock    sync.Mutex
 }
 
 // NewPool will create a Pool structure with an array of Solr servers.
 // It will create numWorkers per Solr server, and allow bufLen jobs
 // before the workers start blocking.
-func NewPool(core string, hostUrls []string, numWorkers int, bufLen int) *Pool {
+func NewPool(core string, hostUrls []string, numWorkers, bufLen, timeout int) *Pool {
 	p := &Pool{}
 	p.solrCore = core
 	p.hostUrls = hostUrls
 	p.nWorkersPerHost = numWorkers
 	p.bufferLen = bufLen
-
+	p.timeout = timeout
 	return p
 }
 
@@ -119,6 +129,7 @@ func (p *Pool) Run() (<-chan struct{}, error) {
 	}
 
 	nWorkers := p.nWorkersPerHost * len(p.hostUrls)
+	glog.Infof("SolrPool.Run() with %v worker(s).", nWorkers)
 
 	p.jobCh = make(chan SolrJob, p.bufferLen)
 	p.dieCh = make(chan struct{}, 1)
@@ -132,7 +143,7 @@ func (p *Pool) Run() (<-chan struct{}, error) {
 			dieCh := make(chan struct{}, 1)
 			dieChs = append(dieChs, dieCh)
 
-			w := newWorker(p, p.jobCh, dieCh, collectWorkersDeathCh, host, p.solrCore)
+			w := newWorker(p, p.jobCh, dieCh, collectWorkersDeathCh, host, p.solrCore, p.timeout)
 			go w.work()
 		}
 	}
