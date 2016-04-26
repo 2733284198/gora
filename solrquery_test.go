@@ -39,6 +39,35 @@ func TestSolrUpdateQuery(t *testing.T) {
 	}
 }
 
+func TestSolrBatchUpdateQuery(t *testing.T) {
+	expected := []byte(`{"add":{"doc":{"deeper":{"one":"one","two":"two"},"id":"test-id","int_list":[1,2,0,3],"nil":null,"string_list":["你好","Jedná se o delší položka",""]}},"add":{"doc":{"deeper":{"one":"one","two":"two"},"id":"test-id2","int_list":[2,4,6,8],"nil":null,"string_list":["你好","Jedná se o delší položka",""]}}, "commit": {}}`)
+
+	deeper := make(map[string]string)
+	deeper["one"] = "one"
+	deeper["two"] = "two"
+
+	query := make(map[string]interface{})
+	query["id"] = "test-id"
+	query["string_list"] = []string{"你好", "Jedná se o delší položka", ""}
+	query["int_list"] = []int{1, 2, 0, 3}
+	query["deeper"] = deeper
+	query["nil"] = nil
+
+	nextQuery := make(map[string]interface{})
+	nextQuery["id"] = "test-id2"
+	nextQuery["string_list"] = []string{"你好", "Jedná se o delší položka", ""}
+	nextQuery["int_list"] = []int{2, 4, 6, 8}
+	nextQuery["deeper"] = deeper
+	nextQuery["nil"] = nil
+
+	queries := []map[string]interface{}{query, nextQuery}
+	solrQuery := NewSolrBatchUpdateQuery(queries)
+
+	if bytes.Compare(expected, solrQuery.Bytes()) != 0 {
+		t.Errorf("Found unexpected query data: %s", solrQuery.Bytes())
+	}
+}
+
 func TestSolrDeleteQuery(t *testing.T) {
 	expected := []byte("{\"delete\":{\"query\":\"*:*\"}, \"commit\": {}}")
 	query := NewSolrDeleteQuery("*:*")

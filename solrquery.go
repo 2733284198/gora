@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // SolrQuery represents a SolrJob that can be submitted to a pool.
@@ -91,15 +92,15 @@ func (q *SolrQuery) Bytes() []byte {
 // SolrUpdateQuery represents a query that will update or create a new Solr document
 type SolrUpdateQuery struct {
 	Documents map[string]interface{}
-	handler   string
-	resultCh  chan *SolrResponse
+	handler  string
+	resultCh chan *SolrResponse
 }
 
-func NewSolrUpdateQuery(documents map[string]interface{}) *SolrUpdateQuery {
+func NewSolrUpdateQuery(document map[string]interface{}) *SolrUpdateQuery {
 	return &SolrUpdateQuery{
-		Documents: documents,
-		handler:   "update",
-		resultCh:  make(chan *SolrResponse, 1),
+		Documents: document,
+		handler:  "update",
+		resultCh: make(chan *SolrResponse, 1),
 	}
 }
 
@@ -118,6 +119,46 @@ func (q *SolrUpdateQuery) Wait() *SolrResponse {
 func (q *SolrUpdateQuery) Bytes() []byte {
 	b, _ := json.Marshal(q.Documents)
 	buffer := bytes.NewBufferString(fmt.Sprintf("{\"add\":{\"doc\":%s}, \"commit\": {}}", b))
+
+	return buffer.Bytes()
+}
+
+// SolrBatchUpdateQuery represents a query that will update or create several Solr documents
+type SolrBatchUpdateQuery struct {
+	Documents []map[string]interface{}
+	handler   string
+	resultCh  chan *SolrResponse
+}
+
+func NewSolrBatchUpdateQuery(documents []map[string]interface{}) *SolrBatchUpdateQuery {
+	return &SolrBatchUpdateQuery{
+		Documents: documents,
+		handler:   "update",
+		resultCh:  make(chan *SolrResponse, 1),
+	}
+}
+
+func (q *SolrBatchUpdateQuery) Handler() string {
+	return q.handler
+}
+
+func (q *SolrBatchUpdateQuery) ResultCh() chan *SolrResponse {
+	return q.resultCh
+}
+
+func (q *SolrBatchUpdateQuery) Wait() *SolrResponse {
+	return <-q.ResultCh()
+}
+
+func (q *SolrBatchUpdateQuery) Bytes() []byte {
+	docs := make([]string, len(q.Documents))
+	for i, d := range q.Documents {
+		b, _ := json.Marshal(d)
+		docs[i] = fmt.Sprintf("\"add\":{\"doc\":%s}", b)
+	}
+
+	buf := strings.Join(docs, ",")
+	buffer := bytes.NewBufferString(fmt.Sprintf("{%s, \"commit\": {}}", buf))
 
 	return buffer.Bytes()
 }
