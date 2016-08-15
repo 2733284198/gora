@@ -115,7 +115,7 @@ func TestBadQuery(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	testUrl, _ := url.Parse("http://bad.url/")
+	testUrl, _ := url.Parse("http://127.0.0.2:1/")
 
 	client := http.Client{
 		Transport: RewriteTransport{
@@ -145,7 +145,7 @@ func TestTestConnection(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	server = httptest.NewServer(handler)
-	testUrl, _ := url.Parse("http://bad.url/")
+	testUrl, _ := url.Parse("http://127.0.0.2:1/")
 
 	httpClient := http.Client{
 		Transport: RewriteTransport{
