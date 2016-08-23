@@ -77,3 +77,12 @@ func TestSolrDeleteQuery(t *testing.T) {
 	}
 
 }
+
+func TestSolrBatchDeleteQuery(t *testing.T) {
+	expected := []byte(`{"delete":["one","two","three"], "commit": {}}`)
+	query := NewSolrBatchDeleteQuery([]string{"one", "two", "three"})
+
+	if bytes.Compare(expected, query.Bytes()) != 0 {
+		t.Errorf("Found unexpected query data: %s", query.Bytes())
+	}
+}

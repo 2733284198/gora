@@ -92,15 +92,15 @@ func (q *SolrQuery) Bytes() []byte {
 // SolrUpdateQuery represents a query that will update or create a new Solr document
 type SolrUpdateQuery struct {
 	Documents map[string]interface{}
-	handler  string
-	resultCh chan *SolrResponse
+	handler   string
+	resultCh  chan *SolrResponse
 }
 
 func NewSolrUpdateQuery(document map[string]interface{}) *SolrUpdateQuery {
 	return &SolrUpdateQuery{
 		Documents: document,
-		handler:  "update",
-		resultCh: make(chan *SolrResponse, 1),
+		handler:   "update",
+		resultCh:  make(chan *SolrResponse, 1),
 	}
 }
 
@@ -191,7 +191,44 @@ func (q *SolrDeleteQuery) Wait() *SolrResponse {
 }
 
 func (q *SolrDeleteQuery) Bytes() []byte {
-	buffer := bytes.NewBufferString(fmt.Sprintf("{\"delete\":{\"query\":\"%s\"}, \"commit\": {}}", q.match))
+	query := fmt.Sprintf("{\"delete\":{\"query\":%s}, \"commit\": {}}", strconv.Quote(q.match))
+	buffer := bytes.NewBufferString(query)
+
+	return buffer.Bytes()
+}
+
+// SolrBatchDeleteQuery represents a query that will remove documents
+type SolrBatchDeleteQuery struct {
+	Ids      []string
+	handler  string
+	resultCh chan *SolrResponse
+}
+
+func NewSolrBatchDeleteQuery(ids []string) *SolrBatchDeleteQuery {
+	return &SolrBatchDeleteQuery{
+		handler:  "update",
+		Ids:      ids,
+		resultCh: make(chan *SolrResponse, 1),
+	}
+}
+
+func (q *SolrBatchDeleteQuery) Handler() string {
+	return q.handler
+}
+
+func (q *SolrBatchDeleteQuery) ResultCh() chan *SolrResponse {
+	return q.resultCh
+}
+
+func (q *SolrBatchDeleteQuery) Wait() *SolrResponse {
+	return <-q.ResultCh()
+}
+
+func (q *SolrBatchDeleteQuery) Bytes() []byte {
+	b, _ := json.Marshal(q.Ids)
+	query := fmt.Sprintf(`"delete":%s`, b)
+
+	buffer := bytes.NewBufferString(fmt.Sprintf(`{%s, "commit": {}}`, query))
 
 	return buffer.Bytes()
 }

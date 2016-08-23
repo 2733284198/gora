@@ -110,29 +110,6 @@ func TestQuery(t *testing.T) {
 	}
 }
 
-func TestBadQuery(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	testUrl, _ := url.Parse("http://127.0.0.2:1/")
-
-	client := http.Client{
-		Transport: RewriteTransport{
-			URL: testUrl,
-		},
-	}
-
-	solrClient := NewHttpSolrClient(server.URL, "core").(*HttpSolrClient)
-	solrClient.client = &client
-
-	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, "/badurl")
-	_, retry := solrClient.Execute(solrQuery)
-	if retry {
-		t.Error("Can't retry a bad URL")
-	}
-}
-
 func TestTestConnection(t *testing.T) {
 	expected := bytes.NewBufferString(`{}`)
 	server, client := createTestServer(expected, "/update")
