@@ -13,15 +13,10 @@ var (
 	ErrInvalidHeader    = errors.New("ResponseHeader was invalid")
 )
 
-// Document represents a Solr document, as returned by Select queries
-type Document struct {
-	Fields map[string]interface{}
-}
-
 // DocumentCollection represents a collection of solr documents
 // and various other metrics
 type DocumentCollection struct {
-	Docs     []Document
+	Docs     []map[string]interface{}
 	NumFound int
 	Start    int
 }
@@ -90,12 +85,12 @@ func PopulateResponse(j map[string]interface{}) (*SolrResponse, error) {
 		coll := DocumentCollection{}
 		coll.NumFound = num_found
 
-		ds := []Document{}
+		ds := make([]map[string]interface{}, 0, num_results)
 
 		for i := 0; i < num_results; i++ {
 			document, ok := docsSlice[i].(map[string]interface{})
 			if ok {
-				ds = append(ds, Document{document})
+				ds = append(ds, document)
 			}
 		}
 
