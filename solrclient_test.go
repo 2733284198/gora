@@ -99,7 +99,7 @@ func TestQuery(t *testing.T) {
 	server, client := createTestServer(expected, "/select")
 	defer server.Close()
 
-	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, "/select")
+	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, nil, "/select")
 	resp, retry := client.Execute(solrQuery)
 	if retry {
 		t.Fatalf("Should not have to retry a valid job")
@@ -149,7 +149,7 @@ func TestBadDecode(t *testing.T) {
 	server, client := createTestServer(expected, "/update")
 	defer server.Close()
 
-	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, "/update")
+	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, nil, "/update")
 	_, retry := client.Execute(solrQuery)
 	if retry {
 		t.Error("We should not retry this job")
