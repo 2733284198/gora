@@ -16,17 +16,19 @@ type SolrQuery struct {
 	Query    string
 	Facet    *string // this has to be a raw json facet query!
 	Filter   *string // this has to be a raw json filter query!
+	Sort     *string // field order
 	handler  string
 	resultCh chan *SolrResponse
 }
 
-func NewSolrQuery(q string, s int, r int, filter *string, facet *string, handler string) *SolrQuery {
+func NewSolrQuery(q string, s int, r int, filter *string, facet *string, sort *string, handler string) *SolrQuery {
 	return &SolrQuery{
 		Query:    q,
 		Start:    s,
 		Rows:     r,
 		Facet:    facet,
 		Filter:   filter,
+		Sort:     sort,
 		handler:  handler,
 		resultCh: make(chan *SolrResponse, 1),
 	}
@@ -58,6 +60,12 @@ func (q *SolrQuery) Bytes() []byte {
 	buffer.WriteString(":")
 	buffer.WriteString(escape(q.Query))
 	buffer.WriteString(",")
+	if q.Sort != nil {
+		buffer.WriteString(escape("sort"))
+		buffer.WriteString(":")
+		buffer.WriteString(*q.Sort)
+		buffer.WriteString(",")
+	}
 	if q.Filter != nil {
 		buffer.WriteString(escape("filter"))
 		buffer.WriteString(":")

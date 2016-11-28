@@ -10,7 +10,7 @@ func TestSolrQuery(t *testing.T) {
 	expected := []byte(`{"query":"greeting:你好 AND date:1January2016","params":{"wt":"json","start":0,"rows":0}}`)
 
 	query := fmt.Sprintf("greeting:你好 AND date:1January2016")
-	solrQuery := NewSolrQuery(query, 0, 0, nil, nil, "select")
+	solrQuery := NewSolrQuery(query, 0, 0, nil, nil, nil, "select")
 
 	if bytes.Compare(expected, solrQuery.Bytes()) != 0 {
 		t.Errorf("Found unexpected query data: %s", solrQuery.Bytes())
