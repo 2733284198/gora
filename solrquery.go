@@ -63,19 +63,19 @@ func (q *SolrQuery) Bytes() []byte {
 	if q.Sort != nil {
 		buffer.WriteString(escape("sort"))
 		buffer.WriteString(":")
-		buffer.WriteString(*q.Sort)
+		buffer.WriteString(escape(*q.Sort))
 		buffer.WriteString(",")
 	}
 	if q.Filter != nil {
 		buffer.WriteString(escape("filter"))
 		buffer.WriteString(":")
-		buffer.WriteString(*q.Filter)
+		buffer.WriteString(escape(*q.Filter))
 		buffer.WriteString(",")
 	}
 	if q.Facet != nil {
 		buffer.WriteString(escape("facet"))
 		buffer.WriteString(":")
-		buffer.WriteString(*q.Facet)
+		buffer.WriteString(escape(*q.Facet))
 		buffer.WriteString(",")
 	}
 	buffer.WriteString(escape("params"))
