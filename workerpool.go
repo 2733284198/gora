@@ -24,17 +24,13 @@ type worker struct {
 	timeout    int
 }
 
-var (
-	solrClientConstructor = NewHttpSolrClient
-)
-
-func newWorker(parent *Pool, jCh <-chan SolrJob, dCh <-chan struct{}, sDeathCh chan<- struct{}, hostUrl string, core string, timeout int) *worker {
+func newWorker(parent *Pool, jCh <-chan SolrJob, dCh <-chan struct{}, sDeathCh chan<- struct{}, client SolrClient, timeout int) *worker {
 	return &worker{
 		parent:     parent,
 		jobCh:      jCh,
 		dieCh:      dCh,
 		sigDeathCh: sDeathCh,
-		client:     solrClientConstructor(hostUrl, core),
+		client:     client,
 		timeout:    timeout,
 	}
 }
@@ -48,7 +44,6 @@ func (w *worker) work() {
 	hostReachable = nil
 
 	for {
-
 		if timeout {
 			jCh = nil
 			hostReachable = time.After(time.Second * time.Duration(w.timeout))
@@ -68,8 +63,8 @@ func (w *worker) work() {
 				glog.Warning("SolrWorker.timeout received.")
 				resp.Error = ErrTimeout
 			}
-			job.ResultCh() <- resp
 
+			job.ResultCh() <- resp
 		case <-hostReachable:
 			if glog.V(2) {
 				glog.Info("Trying to reconnect to host...")
@@ -86,17 +81,13 @@ func (w *worker) hostOffline() bool {
 
 // Pool holds all the data about our worker pool
 type Pool struct {
-	// nWorkersPerHost specifies the number of workers per each Solr server
-	nWorkersPerHost int
-
-	// hostUrls specifies the URL of each Solr server
-	hostUrls []string
+	// nWorkers specifies the total number of workers this pool should have
+	nWorkersPerClient int
 
 	// bufferLen specifies the number of jobs that can be in queue without blocking
 	bufferLen int
 
-	// solrCore is the core to work with on the Solr server
-	solrCore string
+	clients []SolrClient
 
 	timeout int
 	jobCh   chan SolrJob
@@ -107,11 +98,10 @@ type Pool struct {
 // NewPool will create a Pool structure with an array of Solr servers.
 // It will create numWorkers per Solr server, and allow bufLen jobs
 // before the workers start blocking.
-func NewPool(core string, hostUrls []string, numWorkers, bufLen, timeout int) *Pool {
+func NewPool(clients []SolrClient, numWorkersPerClient, bufLen, timeout int) *Pool {
 	p := &Pool{}
-	p.solrCore = core
-	p.hostUrls = hostUrls
-	p.nWorkersPerHost = numWorkers
+	p.clients = clients
+	p.nWorkersPerClient = numWorkersPerClient
 	p.bufferLen = bufLen
 	p.timeout = timeout
 	return p
@@ -128,22 +118,21 @@ func (p *Pool) Run() (<-chan struct{}, error) {
 		return nil, ErrPoolRunning
 	}
 
-	nWorkers := p.nWorkersPerHost * len(p.hostUrls)
-	glog.Infof("SolrPool.Run() with %v worker(s).", nWorkers)
+	glog.Infof("SolrPool.Run() with %v worker(s).", p.nWorkersPerClient)
 
 	p.jobCh = make(chan SolrJob, p.bufferLen)
 	p.dieCh = make(chan struct{}, 1)
 
 	sigPoolDeathCh := make(chan struct{}, 1)
-	collectWorkersDeathCh := make(chan struct{}, nWorkers)
-	dieChs := make([]chan struct{}, 0, nWorkers)
+	collectWorkersDeathCh := make(chan struct{}, p.nWorkersPerClient)
+	dieChs := make([]chan struct{}, 0, p.nWorkersPerClient)
 
-	for _, host := range p.hostUrls {
-		for i := 0; i < p.nWorkersPerHost; i++ {
+	for _, client := range p.clients {
+		for i := 0; i < p.nWorkersPerClient; i++ {
 			dieCh := make(chan struct{}, 1)
 			dieChs = append(dieChs, dieCh)
 
-			w := newWorker(p, p.jobCh, dieCh, collectWorkersDeathCh, host, p.solrCore, p.timeout)
+			w := newWorker(p, p.jobCh, dieCh, collectWorkersDeathCh, client, p.timeout)
 			go w.work()
 		}
 	}

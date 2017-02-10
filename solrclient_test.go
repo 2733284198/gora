@@ -110,6 +110,36 @@ func TestQuery(t *testing.T) {
 	}
 }
 
+func TestErrorQuery(t *testing.T) {
+	expected := bytes.NewBufferString(`{
+		    "responseHeader": {
+				"status": 400,
+				"QTime": 1
+			},
+			"error": {
+				"msg": "ERROR: [doc=change.me] unknown field 'title'",
+				"code": 400
+			}
+    }`)
+
+	server, client := createTestServer(expected, "/select")
+	defer server.Close()
+
+	solrQuery := NewSolrQuery("*:*", 0, 100, nil, nil, nil, "/select")
+	resp, retry := client.Execute(solrQuery)
+	if retry {
+		t.Fatalf("Should not have to retry a valid job")
+	}
+
+	if resp != nil && resp.Status != 400 {
+		t.Errorf("Expected 400 status, found %d", resp.Status)
+	}
+
+	if resp != nil && resp.Error.Error() != "ERROR: [doc=change.me] unknown field 'title'" {
+		t.Errorf("Expected error message status, found %s", resp.Error)
+	}
+}
+
 func TestTestConnection(t *testing.T) {
 	expected := bytes.NewBufferString(`{}`)
 	server, client := createTestServer(expected, "/update")

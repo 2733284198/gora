@@ -86,7 +86,8 @@ func (c *HttpSolrClient) Execute(job SolrJob) (*SolrResponse, bool) {
 
 	solrResponse, err := SolrResponseFromHTTPResponse(byteResponse)
 	if err != nil {
-		glog.Warningf("HttpSolrClient.SolrResponseFromHTTPResponse() failed. %v.", err)
+		glog.Errorf("HttpSolrClient.SolrResponseFromHTTPResponse() failed. %v.", err)
+		glog.Errorf("Found %v", string(byteResponse))
 
 		emptyResponse.Error = err
 		return emptyResponse, false

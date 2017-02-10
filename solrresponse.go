@@ -104,6 +104,19 @@ func PopulateResponse(j map[string]interface{}) (*SolrResponse, error) {
 		r.Facets = facets.(map[string]interface{})
 	}
 
+	if r.Status >= 400 {
+		solrError, ok := response_root["error"]
+		if ok {
+			errMap, ok := solrError.(map[string]interface{})
+			if ok {
+				solrMsg, ok := errMap["msg"]
+				if ok {
+					r.Error = errors.New(solrMsg.(string))
+				}
+			}
+		}
+	}
+
 	return &r, nil
 }
 

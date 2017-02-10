@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/golang/glog"
 )
 
 // SolrQuery represents a SolrJob that can be submitted to a pool.
@@ -17,11 +19,15 @@ type SolrQuery struct {
 	Facet    *string // this has to be a raw json facet query!
 	Filter   *string // this has to be a raw json filter query!
 	Sort     *string // field order
+	Params   map[string]interface{}
 	handler  string
 	resultCh chan *SolrResponse
 }
 
-func NewSolrQuery(q string, s int, r int, filter *string, facet *string, sort *string, handler string) *SolrQuery {
+func NewSolrQuery(q string, s, r int, filter, facet, sort *string, handler string) *SolrQuery {
+	params := make(map[string]interface{})
+	params["wt"] = "json"
+
 	return &SolrQuery{
 		Query:    q,
 		Start:    s,
@@ -29,6 +35,27 @@ func NewSolrQuery(q string, s int, r int, filter *string, facet *string, sort *s
 		Facet:    facet,
 		Filter:   filter,
 		Sort:     sort,
+		Params:   params,
+		handler:  handler,
+		resultCh: make(chan *SolrResponse, 1),
+	}
+}
+
+func NewSolrSpatialQuery(q, stype, sfield string, lat, lon, d float64, s, r int, filter, facet, sort *string, handler string) *SolrQuery {
+	params := make(map[string]interface{})
+	params["wt"] = "json"
+	params["fq"] = fmt.Sprintf("{!%s sfield=%s}", stype, sfield)
+	params["pt"] = fmt.Sprintf("%f,%f", lat, lon)
+	params["d"] = fmt.Sprintf("%f", d)
+
+	return &SolrQuery{
+		Query:    q,
+		Start:    s,
+		Rows:     r,
+		Facet:    facet,
+		Filter:   filter,
+		Sort:     sort,
+		Params:   params,
 		handler:  handler,
 		resultCh: make(chan *SolrResponse, 1),
 	}
@@ -50,51 +77,45 @@ func (q *SolrQuery) Wait() *SolrResponse {
 	return <-q.ResultCh()
 }
 
+func (q *SolrQuery) GetRows() int {
+	return q.Rows
+}
+
+func (q *SolrQuery) GetStart() int {
+	return q.Start
+}
+
 // Bytes will manually construct the JSON query that will be sent
 // to the Solr server. We do this to embed additional JSON fields.
 // This function executes a tad faster than using the json.Marshal function.
 func (q *SolrQuery) Bytes() []byte {
-	buffer := bytes.NewBufferString("{")
-	buffer.Grow(256)
-	buffer.WriteString(escape("query"))
-	buffer.WriteString(":")
-	buffer.WriteString(escape(q.Query))
-	buffer.WriteString(",")
+	query := make(map[string]interface{})
+
+	query["query"] = q.Query
+
 	if q.Sort != nil {
-		buffer.WriteString(escape("sort"))
-		buffer.WriteString(":")
-		buffer.WriteString(escape(*q.Sort))
-		buffer.WriteString(",")
+		query["sort"] = *q.Sort
 	}
+
 	if q.Filter != nil {
-		buffer.WriteString(escape("filter"))
-		buffer.WriteString(":")
-		buffer.WriteString(escape(*q.Filter))
-		buffer.WriteString(",")
+		query["filter"] = *q.Filter
 	}
+
 	if q.Facet != nil {
-		buffer.WriteString(escape("facet"))
-		buffer.WriteString(":")
-		buffer.WriteString(escape(*q.Facet))
-		buffer.WriteString(",")
+		query["facet"] = *q.Facet
 	}
-	buffer.WriteString(escape("params"))
-	buffer.WriteString(":")
-	buffer.WriteString("{")
-	buffer.WriteString(escape("wt"))
-	buffer.WriteString(":")
-	buffer.WriteString(escape("json"))
-	buffer.WriteString(",")
-	buffer.WriteString(escape("start"))
-	buffer.WriteString(":")
-	buffer.WriteString(strconv.Itoa(q.Start))
-	buffer.WriteString(",")
-	buffer.WriteString(escape("rows"))
-	buffer.WriteString(":")
-	buffer.WriteString(strconv.Itoa(q.Rows))
-	buffer.WriteString("}")
-	buffer.WriteString("}")
-	return buffer.Bytes()
+
+	q.Params["start"] = q.Start
+	q.Params["rows"] = q.Rows
+
+	query["params"] = q.Params
+
+	b, err := json.Marshal(query)
+	if err != nil {
+		glog.Error(err)
+	}
+
+	return b
 }
 
 // SolrUpdateQuery represents a query that will update or create a new Solr document
@@ -122,6 +143,14 @@ func (q *SolrUpdateQuery) ResultCh() chan *SolrResponse {
 
 func (q *SolrUpdateQuery) Wait() *SolrResponse {
 	return <-q.ResultCh()
+}
+
+func (q *SolrUpdateQuery) GetRows() int {
+	return 0
+}
+
+func (q *SolrUpdateQuery) GetStart() int {
+	return 0
 }
 
 func (q *SolrUpdateQuery) Bytes() []byte {
@@ -156,6 +185,14 @@ func (q *SolrBatchUpdateQuery) ResultCh() chan *SolrResponse {
 
 func (q *SolrBatchUpdateQuery) Wait() *SolrResponse {
 	return <-q.ResultCh()
+}
+
+func (q *SolrBatchUpdateQuery) GetRows() int {
+	return 0
+}
+
+func (q *SolrBatchUpdateQuery) GetStart() int {
+	return 0
 }
 
 func (q *SolrBatchUpdateQuery) Bytes() []byte {
@@ -198,6 +235,14 @@ func (q *SolrDeleteQuery) Wait() *SolrResponse {
 	return <-q.ResultCh()
 }
 
+func (q *SolrDeleteQuery) GetRows() int {
+	return 0
+}
+
+func (q *SolrDeleteQuery) GetStart() int {
+	return 0
+}
+
 func (q *SolrDeleteQuery) Bytes() []byte {
 	query := fmt.Sprintf("{\"delete\":{\"query\":%s}, \"commit\": {}}", strconv.Quote(q.match))
 	buffer := bytes.NewBufferString(query)
@@ -230,6 +275,14 @@ func (q *SolrBatchDeleteQuery) ResultCh() chan *SolrResponse {
 
 func (q *SolrBatchDeleteQuery) Wait() *SolrResponse {
 	return <-q.ResultCh()
+}
+
+func (q *SolrBatchDeleteQuery) GetRows() int {
+	return 0
+}
+
+func (q *SolrBatchDeleteQuery) GetStart() int {
+	return 0
 }
 
 func (q *SolrBatchDeleteQuery) Bytes() []byte {

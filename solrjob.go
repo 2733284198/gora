@@ -15,4 +15,7 @@ type SolrJob interface {
 	// Wait is a convinience method that allows a one line function
 	// to wait for a SolrResponse
 	Wait() *SolrResponse
+
+	GetRows() int
+	GetStart() int
 }
