@@ -162,17 +162,25 @@ func (q *SolrUpdateQuery) Bytes() []byte {
 
 // SolrBatchUpdateQuery represents a query that will update or create several Solr documents
 type SolrBatchUpdateQuery struct {
-	Documents []map[string]interface{}
-	handler   string
-	resultCh  chan *SolrResponse
+	Documents    []map[string]interface{}
+	CommitWithin int
+	handler      string
+	resultCh     chan *SolrResponse
 }
 
 func NewSolrBatchUpdateQuery(documents []map[string]interface{}) *SolrBatchUpdateQuery {
 	return &SolrBatchUpdateQuery{
-		Documents: documents,
-		handler:   "update",
-		resultCh:  make(chan *SolrResponse, 1),
+		Documents:    documents,
+		handler:      "update",
+		CommitWithin: 0,
+		resultCh:     make(chan *SolrResponse, 1),
 	}
+}
+
+func NewSolrBatchUpdateQueryCommitWithin(timeInMillis int, documents []map[string]interface{}) *SolrBatchUpdateQuery {
+	q := NewSolrBatchUpdateQuery(documents)
+	q.CommitWithin = timeInMillis
+	return q
 }
 
 func (q *SolrBatchUpdateQuery) Handler() string {
@@ -199,11 +207,20 @@ func (q *SolrBatchUpdateQuery) Bytes() []byte {
 	docs := make([]string, len(q.Documents))
 	for i, d := range q.Documents {
 		b, _ := json.Marshal(d)
-		docs[i] = fmt.Sprintf("\"add\":{\"doc\":%s}", b)
+		if q.CommitWithin > 0 {
+			docs[i] = fmt.Sprintf("\"add\":{\"doc\":%s,\"commitWithin\":%d}", b, q.CommitWithin)
+		} else {
+			docs[i] = fmt.Sprintf("\"add\":{\"doc\":%s}", b)
+		}
 	}
 
 	buf := strings.Join(docs, ",")
-	buffer := bytes.NewBufferString(fmt.Sprintf("{%s, \"commit\": {}}", buf))
+	var buffer *bytes.Buffer
+	if q.CommitWithin > 0 {
+		buffer = bytes.NewBufferString(fmt.Sprintf("{%s}", buf))
+	} else {
+		buffer = bytes.NewBufferString(fmt.Sprintf("{%s, \"commit\": {}}", buf))
+	}
 
 	return buffer.Bytes()
 }
