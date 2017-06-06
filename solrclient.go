@@ -58,10 +58,25 @@ func NewHttpSolrClient(host, core string) SolrClient {
 	return &client
 }
 
-// Adds basic http authentication to requests. Should only be used with https.
-func (c *HttpSolrClient) SetAuth(username string, password string) {
-	c.username = username
-	c.password = password
+// NewHttpSolrClient creates a SolrClient with an http.Client connection and uses basic authentication.
+func NewHttpSolrClientWithAuth(host, core, username, password string) SolrClient {
+	transport := http.Transport{
+		MaxIdleConnsPerHost: 2,
+	}
+
+	httpClient := http.Client{
+		Transport: &transport,
+	}
+
+	client := HttpSolrClient{
+		Host:     host,
+		Core:     core,
+		client:   &httpClient,
+		username: username,
+		password: password,
+	}
+
+	return &client
 }
 
 func (c *HttpSolrClient) useAuth() bool {
