@@ -33,6 +33,9 @@ type HttpSolrClient struct {
 	// Core specifies the Solr core to work with
 	Core string
 
+	username string
+	password string
+
 	client *http.Client
 }
 
@@ -53,6 +56,16 @@ func NewHttpSolrClient(host, core string) SolrClient {
 	}
 
 	return &client
+}
+
+// Adds basic http authentication to requests. Should only be used with https.
+func (c *HttpSolrClient) SetAuth(username string, password string) {
+	c.username = username
+	c.password = password
+}
+
+func (c *HttpSolrClient) useAuth() bool {
+	return (len(c.username) > 0 && len(c.password) > 0)
 }
 
 // TestConnection will issue an empty query to the Solr server.
@@ -121,10 +134,23 @@ func (c *HttpSolrClient) temporaryError(err error) bool {
 // execQuery creates the full URL and posts an array of bytes to that url.
 func (c *HttpSolrClient) execQuery(handler string, json []byte) ([]byte, error) {
 	url := fmt.Sprintf("%s/solr/%s/%s", c.Host, c.Core, handler)
-	r, err := c.client.Post(url, "application/json", bytes.NewReader(json))
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(json))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
+
+	if c.useAuth() {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer r.Body.Close()
 
 	defer r.Body.Close()
 
