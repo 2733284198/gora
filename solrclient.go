@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/golang/glog"
+	"github.com/wirelessregistry/glog"
 )
 
 // SolrClient is the interface that workers in the workerpool use

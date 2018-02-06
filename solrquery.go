@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	"github.com/wirelessregistry/glog"
 )
 
 // SolrQuery represents a SolrJob that can be submitted to a pool.
